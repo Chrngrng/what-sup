@@ -1,0 +1,59 @@
+# 爬取笑话并保存到joke.json :)
+
+from bs4 import BeautifulSoup
+import requests
+import json
+import time
+
+class Joke(object):
+    def __init__(self):
+        self.url = "https://www.qiushibaike.com/text/page/{}/"
+        self.headers = {
+            "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.132 Safari/537.36"}
+        self.information = []
+
+    def get_response(self, url):
+        response = requests.get(url,headers=self.headers)
+        data = response.content.decode()
+        return data
+
+
+    def parser(self,data):
+        soup = BeautifulSoup(data,'html.parser')
+
+        joke_contents = soup.select('.article')
+
+        # print(joke_contents)
+
+        for joke in joke_contents:
+            content = {}
+
+            content['author'] = joke.select_one('.author').get_text()
+
+            content['content'] = joke.select_one('.content').get_text()
+
+          # 放入列表 不用return！！
+            self.information.append(content)
+
+        # print(self.information)
+    def saving(self):
+        data_str = json.dumps(self.information)
+        with open('joke.json','w') as f:
+            f.write(data_str)
+
+    def begin(self):
+        i = int(input("which pages u wanna choose:"))
+        if i in range(1,13):
+            url = self.url.format(i)
+            data = self.get_response(url)
+            self.parser(data)
+
+        else:
+            print('输入错误')
+
+        self.saving()
+        time.sleep(1)
+
+
+
+Joke().begin()
