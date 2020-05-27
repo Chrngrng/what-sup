@@ -1,0 +1,112 @@
+0. 需要导入的模块
+import pandas as pd
+import numpy as np
+from sklearn.linear_model import LinearRegression, LogisticRegression
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
+from sklearn.metrics import accuracy_score
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+import re
+
+1. 读取KAGGLE下载csv文件
+
+titanic = pd.read_csv('train.csv')
+test = pd.read_csv('test.csv')
+
+2.进行数据清洗
+titanic['Age'] = titanic['Age'].fillna(31)  # 将NULL 用均值填充
+test['Age'] = test['Age'].fillna(31)
+
+titanic.loc[titanic['Sex'] == 'male', 'Sex'] = 0  # 将性别转为0/1 (str --> int)
+# titanic['Sex'].unique()
+titanic.loc[titanic['Sex'] == 'female', 'Sex'] = 1
+test.loc[test['Sex']=='male', 'Sex'] = 0
+test.loc[test['Sex']=='female', 'Sex'] = 1
+
+# titanic['Embarked'].unique() 那个数据多可以填充哪个
+titanic['Embarked'] = titanic['Embarked'].fillna(0)
+titanic.loc[titanic['Embarked'] == 'S', 'Embarked'] = 0
+titanic.loc[titanic['Embarked'] == 'C', 'Embarked'] = 1
+titanic.loc[titanic['Embarked'] == 'Q', 'Embarked'] = 2
+
+test['Embarked'] = test['Embarked'].fillna(0)
+test.loc[test['Embarked'] == 'S', 'Embarked'] = 0
+test.loc[test['Embarked'] == 'C', 'Embarked'] = 1
+test.loc[test['Embarked'] == 'Q', 'Embarked'] = 2
+
+
+# 将 fare&Age 对部分数据先拟合fit，找到该part的整体指标，如均值、方差、最大值最小值等等（根据具体转换的目的），然后对该trainData进行转换transform，从而实现数据的标准化、归一化等等。
+si_Fare = SimpleImputer(missing_values=np.nan, strategy='mean')
+test['Fare'] = si_Fare.fit_transform(test['Fare'].values.reshape(-1, 1))
+
+
+mmx = MinMaxScaler()
+titanic['Fare'] = mmx.fit_transform(titanic['Fare'].values.reshape(-1, 1))
+test['Fare'] = mmx.fit_transform(test['Fare'].values.reshape(-1, 1))
+titanic['Age'] = mmx.fit_transform(titanic['Age'].values.reshape(-1, 1))
+test['Age'] = mmx.fit_transform(test['Age'].values.reshape(-1, 1))
+
+titanic['Title'] = titanic['Name'].map(lambda x: re.compile("([A-Za-z]+)\.").search(x).group())  # 提取NAME，判断Name的影响,
+test['Title'] = test['Name'].map(lambda x: re.compile("([A-Za-z]+)\.").search(x).group())
+
+# 因此，让我们用虚拟值1代替诺贝尔奖获得者，并用虚拟值0代替普通人群。
+title_mapping = {'Mr.': 0, 'Mrs.': 0, 'Miss.': 0, 'Master.': 1, 'Don.': 1, 'Rev.': 1, 'Dr.': 1, 'Mme.': 0, 'Ms.': 0,
+                 'Major.': 1,
+                 'Lady.': 1, 'Sir.': 1, 'Mlle.': 0, 'Col.': 1, 'Capt.': 1, 'Countess.': 1, 'Jonkheer.': 1, 'Dona.': 1, }
+titanic['Title'] = titanic['Title'].map(title_mapping)
+titanic['Title'] = titanic['Title'].fillna(0)
+
+title_mapping1 = {'Mr.': 0, 'Mrs.': 0, 'Miss.': 0, 'Master.': 1, 'Don.': 1, 'Rev.': 1, 'Dr.': 1, 'Mme.': 0, 'Ms.': 0,
+                  'Major.': 1,
+                  'Lady.': 1, 'Sir.': 1, 'Mlle.': 0, 'Col.': 1, 'Capt.': 1, 'Countess.': 1, 'Jonkheer.': 1,
+                  'Dona.': 1, }
+test['Title'] = test['Title'].map(title_mapping1)
+test['Title'] = test['Title'].fillna(0)
+
+#当SibSp和Parch值= 0时，我们将保留它。其他值将被1代替。
+for n, i in enumerate(titanic["SibSp"]):
+    if i != 0:
+        titanic["SibSp"][n] = 1
+for m, k in enumerate(titanic["Parch"]):
+    if k != 0:
+        titanic["Parch"][m] = 1
+
+#整理并重新排序
+ds_train = titanic.drop(columns=['Cabin', 'Name', 'Ticket'])
+ds_test = test.drop(columns=['Cabin', 'Name', 'Ticket'])
+DS_train = ds_train[
+    ['PassengerId', 'Sex', 'Pclass', 'Age', 'Fare', 'SibSp', 'Parch', 'Embarked', 'Title', 'Survived']] 
+DS_test = ds_test[['PassengerId', 'Sex', 'Pclass', 'Age', 'Fare', 'SibSp', 'Parch', 'Embarked', 'Title']]
+
+
+3. 建立模型
+#首先尝试logistics回归模型
+feature_columns = ['Sex', 'Pclass', 'Age', 'Fare', 'SibSp', 'Parch', 'Embarked', 'Title']
+X = DS_train[feature_columns]  # training Features (Predectors)
+y = DS_train['Survived']  # Target variable
+
+X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.30, random_state=0)
+logreg = LogisticRegression(max_iter=30000).fit(X_train, y_train)
+y_pred = logreg.predict(X_val)
+acc_LOG = round(accuracy_score(y_pred, y_val) * 100, 2)
+
+数据结果为79.1%
+
+# 测试Gradient Boosting Classifier的准确性
+gbc = GradientBoostingClassifier()
+gbc.fit(X_train, y_train)
+y_pred = gbc.predict(X_val)
+acc_gbc = round(accuracy_score(y_pred, y_val) * 100, 2)
+数据结果为85.07%
+
+4. 保存结果
+
+ids = DS_test['PassengerId']
+predictions = gbc.predict(DS_test.drop(columns='PassengerId'))
+
+output = pd.DataFrame({'PassengerId': ids, 'Survived': predictions})
+
+output.to_csv('Finaltest.csv',index=False)
+
+#初学者，记录就图一乐
